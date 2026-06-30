@@ -1,0 +1,264 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>星辰图书馆图书管理系统</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+</head>
+<body class="bg-gray-100 font-sans">
+    <div id="app">
+        <!-- 登录界面 -->
+        <div v-if="!isLoggedIn" class="min-h-screen flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8 bg-[url('https://images.unsplash.com/photo-1507842217343-583bb7270b66?ixlib=rb-4.0.3&auto=format&fit=crop&w=2000&q=80')] bg-cover bg-center">
+            <div class="max-w-md w-full space-y-8 bg-white p-10 rounded-xl shadow-2xl bg-opacity-95">
+                <div>
+                    <h2 class="mt-6 text-center text-3xl font-extrabold text-gray-900">📚 星辰图书馆系统</h2>
+                    <p class="mt-2 text-center text-sm text-gray-600">面向对象程序设计 - Web交互演示端</p>
+                </div>
+                <div class="mt-8 space-y-4">
+                    <button @click="login('reader')" class="group relative w-full flex justify-center py-3 px-4 border border-transparent text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 transition">
+                        我是读者 (借阅/归还)
+                    </button>
+                    <button @click="login('admin')" class="group relative w-full flex justify-center py-3 px-4 border border-transparent text-sm font-medium rounded-md text-white bg-green-600 hover:bg-green-700 transition">
+                        我是管理员 (入库/盘点)
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- 主界面 -->
+        <div v-else class="min-h-screen flex flex-col">
+            <!-- 导航栏 -->
+            <nav class="bg-white shadow-md">
+                <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
+                    <div class="flex items-center text-2xl font-bold" :class="role === 'reader' ? 'text-blue-600' : 'text-green-600'">
+                        {{ role === 'reader' ? '📖 读者服务大厅' : '⚙️ 图书馆管理后台' }}
+                    </div>
+                    <div class="flex items-center gap-4">
+                        <span class="text-sm font-medium text-gray-600">
+                            {{ role === 'reader' ? '欢迎，李华 (证号: R001)' : '欢迎，管理员老张' }}
+                        </span>
+                        <button @click="isLoggedIn = false" class="px-3 py-1 bg-red-100 text-red-600 rounded-md hover:bg-red-200 text-sm font-medium">退出</button>
+                    </div>
+                </div>
+            </nav>
+
+            <div class="max-w-7xl mx-auto py-8 px-4 sm:px-6 lg:px-8 w-full flex-1">
+                
+                <!-- 读者面板 -->
+                <div v-if="role === 'reader'" class="space-y-8">
+                    <div class="bg-white p-6 rounded-lg shadow-sm border border-gray-200 flex gap-4">
+                        <input type="text" placeholder="输入书名、作者或ISBN查询..." class="flex-1 px-4 py-2 border rounded-md focus:ring-2 focus:ring-blue-500 outline-none">
+                        <button class="px-6 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 font-medium">🔍 检索图书</button>
+                    </div>
+
+                    <div class="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
+                        <div class="px-6 py-4 border-b border-gray-200 bg-gray-50 font-bold text-gray-700">热门馆藏推荐</div>
+                        <ul class="divide-y divide-gray-200">
+                            <li v-for="book in books" :key="book.isbn" class="p-6 flex items-center justify-between hover:bg-gray-50">
+                                <div>
+                                    <h3 class="text-lg font-bold text-gray-900">《{{ book.title }}》</h3>
+                                    <p class="text-sm text-gray-500 mt-1">作者: {{ book.author }} | ISBN: {{ book.isbn }}</p>
+                                    <div class="mt-2 text-sm text-gray-600">可借数量: <span class="font-bold text-green-600">{{ book.available }}</span> / 馆藏总数: {{ book.total }}</div>
+                                </div>
+                                <button v-if="!book.isBorrowed" @click="borrow(book)" class="px-5 py-2 bg-blue-600 text-white rounded shadow-sm hover:bg-blue-700 font-medium">借阅</button>
+                                <button v-else disabled class="px-5 py-2 bg-gray-300 text-white rounded cursor-not-allowed">已在借</button>
+                            </li>
+                        </ul>
+                    </div>
+                    
+                    <div class="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
+                        <div class="px-6 py-4 border-b border-gray-200 bg-blue-50 font-bold text-blue-800">当前借阅中 (我的书架)</div>
+                        <div class="p-6 grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div v-for="book in borrowedBooks" :key="book.isbn" class="border border-blue-200 rounded-lg p-4 bg-blue-50/30 relative">
+                                <h4 class="font-bold text-gray-800">《{{ book.title }}》</h4>
+                                <p class="text-xs text-gray-500 mt-1">借出时间: 2024-06-12 | 应还: <span class="text-red-500">2024-07-12</span></p>
+                                <button @click="returnBook(book)" class="absolute bottom-4 right-4 px-3 py-1 bg-green-500 text-white text-sm rounded hover:bg-green-600 shadow">归还</button>
+                            </div>
+                            <div v-if="borrowedBooks.length === 0" class="text-gray-400 text-sm py-4">您的书架目前空空如也~</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- ================= 核心更新：管理员真实交互面板 ================= -->
+                <div v-if="role === 'admin'" class="space-y-6">
+                    
+                    <!-- 数据概览 -->
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        <div class="bg-white p-6 rounded-lg shadow-sm border border-gray-200 flex items-center space-x-4">
+                            <div class="p-4 bg-blue-100 text-blue-600 rounded-full text-2xl">📚</div>
+                            <div>
+                                <p class="text-gray-500 text-sm">馆藏图书种类</p>
+                                <p class="text-2xl font-bold">{{ books.length }} 种</p>
+                            </div>
+                        </div>
+                        <div class="bg-white p-6 rounded-lg shadow-sm border border-gray-200 flex items-center space-x-4">
+                            <div class="p-4 bg-green-100 text-green-600 rounded-full text-2xl">📦</div>
+                            <div>
+                                <p class="text-gray-500 text-sm">当前在馆可借总册数</p>
+                                <p class="text-2xl font-bold">{{ totalAvailableCount }} 册</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 图书入库操作区 -->
+                    <div class="bg-white p-6 rounded-lg shadow-sm border border-gray-200 border-l-4 border-l-green-500">
+                        <h3 class="text-lg font-bold text-gray-800 mb-4">图书入库 / 新增库存</h3>
+                        <div class="grid grid-cols-1 md:grid-cols-5 gap-4">
+                            <input v-model="newBook.isbn" type="text" placeholder="ISBN编号" class="px-3 py-2 border rounded text-sm outline-none focus:ring-2 focus:ring-green-500">
+                            <input v-model="newBook.title" type="text" placeholder="书名" class="px-3 py-2 border rounded text-sm outline-none focus:ring-2 focus:ring-green-500">
+                            <input v-model="newBook.author" type="text" placeholder="作者" class="px-3 py-2 border rounded text-sm outline-none focus:ring-2 focus:ring-green-500">
+                            <input v-model="newBook.total" type="number" min="1" placeholder="入库数量" class="px-3 py-2 border rounded text-sm outline-none focus:ring-2 focus:ring-green-500">
+                            <button @click="addBook" class="bg-green-600 hover:bg-green-700 text-white font-medium py-2 px-4 rounded shadow-sm transition">
+                                ➕ 确认入库
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- 全馆书目表格 -->
+                    <div class="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
+                        <div class="px-6 py-4 border-b border-gray-200 bg-gray-50 font-bold text-gray-700 flex justify-between items-center">
+                            <span>全馆书目及库存管理列表</span>
+                        </div>
+                        <div class="overflow-x-auto">
+                            <table class="min-w-full divide-y divide-gray-200">
+                                <thead class="bg-gray-50">
+                                    <tr>
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">图书信息 (书名/作者)</th>
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">ISBN编号</th>
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">当前库存状态</th>
+                                        <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">操作</th>
+                                    </tr>
+                                </thead>
+                                <tbody class="bg-white divide-y divide-gray-200">
+                                    <tr v-for="book in books" :key="book.isbn" class="hover:bg-gray-50">
+                                        <td class="px-6 py-4">
+                                            <div class="text-sm font-bold text-gray-900">《{{ book.title }}》</div>
+                                            <div class="text-sm text-gray-500">{{ book.author }}</div>
+                                        </td>
+                                        <td class="px-6 py-4 text-sm text-gray-500 font-mono">{{ book.isbn }}</td>
+                                        <td class="px-6 py-4">
+                                            <span class="px-3 py-1 inline-flex text-xs leading-5 font-bold rounded-full" 
+                                                  :class="book.available > 0 ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'">
+                                                可借: {{ book.available }} / 总量: {{ book.total }}
+                                            </span>
+                                        </td>
+                                        <td class="px-6 py-4 text-right text-sm font-medium">
+                                            <button @click="deleteBook(book.isbn)" class="text-red-500 hover:text-red-700 hover:underline">删除/报损</button>
+                                        </td>
+                                    </tr>
+                                    <tr v-if="books.length === 0">
+                                        <td colspan="4" class="px-6 py-10 text-center text-gray-400">暂无馆藏图书</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+                <!-- ===================================================================== -->
+
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const { createApp, ref, computed } = Vue;
+        createApp({
+            setup() {
+                const isLoggedIn = ref(false);
+                const role = ref('');
+                
+                // 初始数据
+                const books = ref([
+                    { isbn: '9787111', title: 'Java核心技术 卷I', author: 'Cay S. Horstmann', total: 5, available: 4, isBorrowed: false },
+                    { isbn: '9787115', title: '算法图解', author: 'Aditya Bhargava', total: 3, available: 3, isBorrowed: false },
+                    { isbn: '9787302', title: '数据结构(C语言版)', author: '严蔚敏', total: 2, available: 1, isBorrowed: false }
+                ]);
+
+                const borrowedBooks = ref([]);
+                
+                // 管理员入库表单数据
+                const newBook = ref({ isbn: '', title: '', author: '', total: 1 });
+
+                // 计算属性：统计在馆可借总数
+                const totalAvailableCount = computed(() => {
+                    return books.value.reduce((sum, book) => sum + book.available, 0);
+                });
+
+                const login = (r) => {
+                    role.value = r;
+                    isLoggedIn.value = true;
+                };
+
+                // 读者借阅
+                const borrow = (book) => {
+                    book.available--;
+                    book.isBorrowed = true;
+                    borrowedBooks.value.push(book);
+                };
+
+                // 读者归还
+                const returnBook = (book) => {
+                    borrowedBooks.value = borrowedBooks.value.filter(b => b.isbn !== book.isbn);
+                    const originalBook = books.value.find(b => b.isbn === book.isbn);
+                    if (originalBook) {
+                        originalBook.available++;
+                        originalBook.isBorrowed = false;
+                    }
+                    alert(`《${book.title}》 归还成功！`);
+                };
+
+                // 管理员：图书入库
+                const addBook = () => {
+                    if (!newBook.value.isbn || !newBook.value.title || !newBook.value.author) {
+                        alert('操作失败：请输入完整的 ISBN、书名和作者！');
+                        return;
+                    }
+                    const addAmount = Number(newBook.value.total);
+                    if (addAmount <= 0) {
+                        alert('操作失败：入库数量必须大于 0！');
+                        return;
+                    }
+
+                    // 检查是否已经有该书，如果有则增加库存
+                    const existingBook = books.value.find(b => b.isbn === newBook.value.isbn);
+                    if (existingBook) {
+                        existingBook.total += addAmount;
+                        existingBook.available += addAmount;
+                        alert(`已成功为《${existingBook.title}》增加库存 ${addAmount} 册！`);
+                    } else {
+                        // 新书入库
+                        books.value.push({
+                            isbn: newBook.value.isbn,
+                            title: newBook.value.title,
+                            author: newBook.value.author,
+                            total: addAmount,
+                            available: addAmount,
+                            isBorrowed: false
+                        });
+                        alert('新书入库成功！');
+                    }
+                    // 清空表单
+                    newBook.value = { isbn: '', title: '', author: '', total: 1 };
+                };
+
+                // 管理员：删除图书
+                const deleteBook = (isbn) => {
+                    const target = books.value.find(b => b.isbn === isbn);
+                    if (confirm(`警告：确定要将《${target.title}》从全馆系统中彻底删除吗？`)) {
+                        books.value = books.value.filter(b => b.isbn !== isbn);
+                        // 同时移除已被借出的记录，防止数据脏读
+                        borrowedBooks.value = borrowedBooks.value.filter(b => b.isbn !== isbn);
+                    }
+                };
+
+                return { 
+                    isLoggedIn, role, books, borrowedBooks, newBook, totalAvailableCount,
+                    login, borrow, returnBook, addBook, deleteBook 
+                };
+            }
+        }).mount('#app');
+    </script>
+</body>
+</html>
